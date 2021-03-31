@@ -37,31 +37,114 @@ str(train)
 ```
 
 
+Csomagok, előkészítés
 ```{r}
-library(xgboost)
+library(mice)
 library(caret)
+library(splines)
+library(glmnet)
+library(nnet)
+library(rpart)
+library(randomForest)
+library(gbm)
+library(caretEnsemble)
+library(ModelMetrics)
+library(plotmo)
+library(plyr)
+library(ggplot2)
+library(gmodels)
 
-newdata <- dummyVars("~ Pclass + Sex + Embarked", data = train)
-train_data <- data.frame(predict(newdata, newdata = train))
-train_data$Age <- train$Age
-train_data$SibSp <- train$SibSp
-train_data$Parch <- train$Parch
-train_data$Fare <- train$Fare
-View(train_data)
+traink <- dummyVars("~ Sex + Embarked", data = train)
+traink <- data.frame(predict(traink, newdata = train))
+traink$Pclass <- train$Pclass
+traink$Age <- train$Age
+traink$SibSp <- train$SibSp
+traink$Parch <- train$Parch
+traink$Fare <- train$Fare
+traink$Survived <- train$Survived
+set.seed(1912)
+traink <- complete(mice(traink, method="rf", m=1))
+View(traink)
 
-train_dmatrix <- xgb.DMatrix(label = train$Survived, data = as.matrix(train_data))
+testk <- dummyVars("~ Sex + Embarked", data = test)
+testk <- data.frame(predict(testk, newdata = test))
+testk$Pclass <- test$Pclass
+testk$Age <- test$Age
+testk$SibSp <- test$SibSp
+testk$Parch <- test$Parch
+testk$Fare <- test$Fare
+set.seed(1912)
+testk <- complete(mice(testk, method="rf", m=1))
+View(testk)
+```
 
-newtest <- dummyVars("~ Pclass + Sex + Embarked", data = test)
-test_data <- data.frame(predict(newtest, newdata = test))
-test_data$Age <- test$Age
-test_data$SibSp <- test$SibSp
-test_data$Parch <- test$Parch
-test_data$Fare <- test$Fare
-View(test_data)
-
-#test_dmatrix <- xgb.DMatrix(label = test$Survived, data = as.matrix(test_data))
+Ábrázolás
+```{r}
+ ggplot(data=traink, aes(Fare))+geom_histogram()
+ ggplot(data=traink, aes(Age))+geom_histogram()
+ ggplot(data=traink, aes(Survived))+geom_bar()
+```
 
 
+Modellek
+```{r}
+ keresztval <- trainControl(method="cv", number=5)
+ fa <- train(as.factor(Survived)~., data=traink, method="rpart", trControl=keresztval)
+ fa # cp=0.01461988 esetén Accuracy=0.8002134, Kappa=0.5708988
+```
+```{r}
+ mtry <- data.frame(mtry=1:10)
+ erdo <- train(as.factor(Survived)~., data=traink, method="rf", trControl=keresztval, ntree=30, tuneGrid=mtry)
+ erdo # mtry=4 esetén Accuracy=0.8440274, Kappa=0.6614112
+```
 
-xgbmodel <- xgboost(data = train_dmatrix, max.depth = 2, eta = 1, nthread = 2, nrounds = 10, objective = "binary:logistic")
+```{r}
+ gboost <- train(as.factor(Survived)~., data=traink, method="gbm", trControl=keresztval)
+ gboost # n.trees = 150, interaction.depth = 2, shrinkage = 0.1 and n.minobsinnode = 10 esetén Accuracy=0.8249262, Kappa=0.6225874
+```
+
+```{r}
+#???
+ modellek <- caretList(as.factor(Survived)~., data=traink, methodList=c("rpart","rf","gbm"), trControl=trainControl(method="cv", number=5, savePredictions="final", classProbs=TRUE))
+ szuper <- caretStack(modellek, method="logreg", trControl=trainControl(method="cv", number=5, savePredictions="final", classProbs=TRUE))
+ szuper
+```
+
+```{r}
+ hyper <- data.frame(n.trees = 150, interaction.depth = 2, shrinkage = 0.1, n.minobsinnode = 10)
+ gboost_best <- train(as.factor(Survived)~., data=traink, method="gbm", trControl=keresztval, tuneGrid=hyper)
+ mtry <- data.frame(mtry=4)
+ erdo_best <- train(as.factor(Survived)~., data=traink, method="rf", trControl=keresztval, ntree=30, tuneGrid=mtry)
+ summary(gboost_best)
+ gboost_best # Accuracy=0.8248481, Kappa=0.6215871
+ summary(erdo_best)
+ erdo_best # Accuracy=0.8384265, Kappa=0.6501237
+```
+
+Változók fontossága, becslés
+```{r}
+ fontos_gboost <- varImp(gboost_best)
+ fontos_gboost <- fontos_gboost$importance
+ plot(varImp(gboost_best))
+```
+```{r}
+ fontos_erdo <- varImp(erdo_best)
+ fontos_erdo <- fontos_erdo$importance
+ plot(varImp(erdo_best))
+```
+```{r}
+ becsultgb <- predict(gboost_best, testk)
+ CrossTable(becsultgb,gender_submission$Survived)
+```
+```{r}
+ becsulterdo <- predict(erdo_best, testk)
+ CrossTable(becsulterdo,gender_submission$Survived)
+```
+
+
+
+
+
+
+
 
