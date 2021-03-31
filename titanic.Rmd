@@ -65,6 +65,7 @@ xgbmodel <- xgboost(data = train_dmatrix, max.depth = 2, eta = 1, nthread = 2, n
 print("Anyádat")
 print("Előd")
 print("Köszi a segítséget!")
+print("Hajaj")
 ```
 
 
