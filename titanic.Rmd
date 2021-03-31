@@ -6,7 +6,8 @@ output: html_notebook
 A Titanic katasztrófa túlélésének predikciója
 
 ```{r}
-gender_submission <- read.csv("~/TSM2/titanic/gender_submission.csv")
+gender_submission <- read.csv("gender_submission.csv")
+View(gender_submission)
 train <- read_csv("~/TSM2/titanic/train.csv", 
      col_types = cols(
          Sex = col_factor(levels = c("male", "female")),
