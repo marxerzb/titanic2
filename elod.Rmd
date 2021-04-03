@@ -8,60 +8,135 @@ A Titanic katasztrófa túlélésének predikciója
 Adatok beolvasása, előkészítése:
 
 ```{r}
-library(readr)
-gender_submission <- read.csv("gender_submission.csv")
-View(gender_submission)
-train <- read_csv("train.csv", 
-     col_types = cols(
-         Sex = col_factor(levels = c("male", "female")),
-         Age = col_double(), 
-         Embarked = col_factor(levels = c("C", "S", "Q")), 
-         Parch = col_integer(), 
-         Pclass = col_factor(levels = c("3", "2", "1"), ordered = TRUE), 
-         SibSp = col_integer(), 
-         Survived = col_integer()))
-test <- read_csv("test.csv", 
-     col_types = cols(
-         Sex = col_factor(levels = c("male", "female")),
-         Age = col_double(), 
-         Embarked = col_factor(levels = c("C", "S", "Q")), 
-         Parch = col_integer(), 
-         Pclass = col_factor(levels = c("3", "2", "1"), ordered = TRUE), 
-         SibSp = col_integer()))
-View(test)
+  library(readr)
+  gender_submission <- read.csv("gender_submission.csv")
+  train <- read_csv("train.csv", 
+       col_types = cols(
+           Sex = col_factor(levels = c("male", "female")),
+           Age = col_double(), 
+           Embarked = col_factor(levels = c("C", "S", "Q")), 
+           Parch = col_integer(), 
+           Pclass = col_factor(levels = c("3", "2", "1"), ordered = TRUE), 
+           SibSp = col_integer(), 
+           Survived = col_integer()))
+  test <- read_csv("test.csv", 
+       col_types = cols(
+           Sex = col_factor(levels = c("male", "female")),
+           Age = col_double(), 
+           Embarked = col_factor(levels = c("C", "S", "Q")), 
+           Parch = col_integer(), 
+           Pclass = col_factor(levels = c("3", "2", "1"), ordered = TRUE), 
+           SibSp = col_integer()))
+  View(test)
 ```
 
 
 ```{r}
-str(train)
+  str(train)
 ```
 
 
 ```{r}
-library(xgboost)
-library(caret)
+  library(mice)
+  library(caret)
+  library(splines)
+  library(glmnet)
+  library(nnet)
+  library(rpart)
+  library(randomForest)
+  library(gbm)
+  library(caretEnsemble)
+  library(ModelMetrics)
+  library(plotmo)
+  library(plyr)
+  library(ggplot2)
+  library(gmodels)
+  
+  newdata <- dummyVars("~ Pclass + Sex + Embarked", data = train)
+  train_data <- data.frame(predict(newdata, newdata = train))
+  train_data$Age <- train$Age
+  train_data$SibSp <- train$SibSp
+  train_data$Parch <- train$Parch
+  train_data$Fare <- train$Fare
+  View(train_data)
+  
+  train_dmatrix <- xgb.DMatrix(label = train$Survived, data = as.matrix(train_data))
+  
+  newtest <- dummyVars("~ Pclass + Sex + Embarked", data = test)
+  test_data <- data.frame(predict(newtest, newdata = test))
+  test_data$Age <- test$Age
+  test_data$SibSp <- test$SibSp
+  test_data$Parch <- test$Parch
+  test_data$Fare <- test$Fare
+  View(test_data)
+  
+  #test_dmatrix <- xgb.DMatrix(label = test$Survived, data = as.matrix(test_data))
+```
 
-newdata <- dummyVars("~ Pclass + Sex + Embarked", data = train)
-train_data <- data.frame(predict(newdata, newdata = train))
-train_data$Age <- train$Age
-train_data$SibSp <- train$SibSp
-train_data$Parch <- train$Parch
-train_data$Fare <- train$Fare
-View(train_data)
+Kata előkészítette:
+```{r}
+  library(mice)
+  traink <- dummyVars("~ Sex + Embarked", data = train)
+  traink <- data.frame(predict(traink, newdata = train))
+  traink$Pclass <- train$Pclass
+  traink$Age <- train$Age
+  traink$SibSp <- train$SibSp
+  traink$Parch <- train$Parch
+  traink$Fare <- train$Fare
+  traink$Survived <- train$Survived
+  set.seed(1912)
+  traink <- complete(mice(traink, method="rf", m=1))
+  View(traink)
+  
+  testk <- dummyVars("~ Sex + Embarked", data = test)
+  testk <- data.frame(predict(testk, newdata = test))
+  testk$Pclass <- test$Pclass
+  testk$Age <- test$Age
+  testk$SibSp <- test$SibSp
+  testk$Parch <- test$Parch
+  testk$Fare <- test$Fare
+  set.seed(1912)
+  testk <- complete(mice(testk, method="rf", m=1))
+  View(testk)
+```
 
-train_dmatrix <- xgb.DMatrix(label = train$Survived, data = as.matrix(train_data))
+Leíró statisztika:
+```{r}
+  library(gmodels)
+  CrossTable(traink$Survived, traink$Sex.female)
+  ggplot(data=traink, aes(Age))+geom_histogram()
+  ggplot(data=traink, aes(Fare))+geom_histogram()
+  ggplot(data=traink, aes(Survived))+geom_bar()
+  ggplot(data=traink, aes(x=as.factor(Survived), y=Age, color=Survived))+geom_boxplot()
+```
 
-newtest <- dummyVars("~ Pclass + Sex + Embarked", data = test)
-test_data <- data.frame(predict(newtest, newdata = test))
-test_data$Age <- test$Age
-test_data$SibSp <- test$SibSp
-test_data$Parch <- test$Parch
-test_data$Fare <- test$Fare
-View(test_data)
+LASSO modell:
+```{r}
+  library(glmnet)
+  y=traink$Survived
+  X<-model.matrix(Survived~., data=traink)
+  Lasso<-cv.glmnet(X,y)
+  plot(Lasso)
+  coef(Lasso, Lasso$lambda.1se)
+```
 
-#test_dmatrix <- xgb.DMatrix(label = test$Survived, data = as.matrix(test_data))
+Spline-függvényes megközelítés:
+```{r}
+  library(splines)
+  spline_reg=lm(Survived~., data=traink)
+  summary(spline_reg)
 
+  library(plotmo)
+  plotmo(spline_reg)
+  predspline<-predict(spline_reg, testk)
+  CrossTable(predspline, gender_submission$Survived)
+```
 
-
-xgbmodel <- xgboost(data = train_dmatrix, max.depth = 2, eta = 1, nthread = 2, nrounds = 10, objective = "binary:logistic")
+MARS-modell:
+```{r}
+  library(earth)
+  MARS<-earth(Survived~., data=traink, degree=2)
+  summary(MARS)
+  plotmo(MARS)
+```
 
