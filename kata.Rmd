@@ -38,7 +38,7 @@ str(train)
 
 
 Csomagok, előkészítés
-```{r}
+```{r, warning=FALSE}
 library(mice)
 library(caret)
 library(splines)
@@ -88,14 +88,19 @@ View(testk)
 
 Modellek
 ```{r}
+ library(rattle)
  keresztval <- trainControl(method="cv", number=5)
  fa <- train(as.factor(Survived)~., data=traink, method="rpart", trControl=keresztval)
  fa # cp=0.01461988 esetén Accuracy=0.8002134, Kappa=0.5708988
+ #plot(fa$finalModel)
+ #text(fa$finalModel)
+ fancyRpartPlot(fa$finalModel)
 ```
 ```{r}
  mtry <- data.frame(mtry=1:10)
  erdo <- train(as.factor(Survived)~., data=traink, method="rf", trControl=keresztval, ntree=30, tuneGrid=mtry)
  erdo # mtry=4 esetén Accuracy=0.8440274, Kappa=0.6614112
+ plot(erdo$finalModel) # ez nem rendes erdőrajz, de olyat careten belül nem találtam
 ```
 
 ```{r}
@@ -104,9 +109,12 @@ Modellek
 ```
 
 ```{r}
-#???
- modellek <- caretList(as.factor(Survived)~., data=traink, methodList=c("rpart","rf","gbm"), trControl=trainControl(method="cv", number=5, savePredictions="final", classProbs=TRUE))
- szuper <- caretStack(modellek, method="logreg", trControl=trainControl(method="cv", number=5, savePredictions="final", classProbs=TRUE))
+#??? vagy az a baja, hogy nem bináris a változó, vagy az, hogy amikor bináris, akkor a kategóriák nevében szám áll az első helyen; szóval nem tudom, mit kezdjek vele
+ control <- trainControl(method="cv", number=5, index = createFolds(traink$Survived, 5), savePredictions="final")
+ levels(traink$Survived)=c("Yes","No")
+ traink %>% mutate(Survived = factor(Survived,labels = make.names(levels(Survived))))
+ modellek <- caretList(Survived~., data=traink, methodList=c("rpart","rf","glmnet"), trControl=control)
+ szuper <- caretStack(modellek, method="logreg", trControl=control)
  szuper
 ```
 
@@ -119,6 +127,7 @@ Modellek
  gboost_best # Accuracy=0.8248481, Kappa=0.6215871
  summary(erdo_best)
  erdo_best # Accuracy=0.8384265, Kappa=0.6501237
+ 
 ```
 
 Változók fontossága, becslés
