@@ -77,7 +77,7 @@ Adatok beolvasása, előkészítése:
 
 ```{r}
   CrossTable(traink$Survived, traink$Sex.female)
-  ggplot(data=traink, aes(Age))+geom_histogram()
+  ggplot(data=traink, aes(Age, fill = Survived, color = Survived))+geom_histogram(color = "blue")
   ggplot(data=traink, aes(Fare))+geom_histogram()
   ggplot(data=traink, aes(Survived))+geom_bar()
   ggplot(data=traink, aes(x=as.factor(Survived), y=Age, color=Survived))+geom_boxplot()
