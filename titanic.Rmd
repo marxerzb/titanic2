@@ -203,6 +203,14 @@ MARS(degree=3)-modell:
   CrossTable(binpredmars3, y2)
 ```
 
+Családkalkulátor
+```{r}
+  reka <- c(0, 1, 0, 1, 0, -0.7071068, 0.4082483, 20, 1, 0, 6.00)
+  predreka<-predict(Mars3, reka)
+  binpredreka<-predreka>acc[which.min(err_mars3)]
+  binpredreka
+```
+
 SVM-modell:
 ```{r}
   SVM <- svm(as.factor(Survived)~., data=Xvesz, scale=TRUE)
